@@ -22,7 +22,10 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-import faiss
+try:
+    import faiss
+except ImportError:
+    faiss = None
 import numpy as np
 import pandas as pd
 from rank_bm25 import BM25Okapi
@@ -182,6 +185,11 @@ class HybridSearchEngine:
 
     def _setup_faiss_index(self, corpus: list[str], force_rebuild: bool = False) -> None:
         """Load or build FAISS index using cached embeddings when available."""
+        if faiss is None:
+            print("FAISS module not installed; continuing in pure BM25 search mode.")
+            self.faiss_index = None
+            return
+
         if not force_rebuild and FAISS_INDEX_PATH.exists() and EMBEDDINGS_CACHE_PATH.exists():
             print(f"Loading cached FAISS index from {FAISS_INDEX_PATH}...")
             self.faiss_index = faiss.read_index(str(FAISS_INDEX_PATH))
@@ -237,12 +245,15 @@ class HybridSearchEngine:
 
     def search_faiss(self, query: str, top_k: int = 50) -> list[tuple[int, float]]:
         """Search using FAISS dense vectors, returning list of (doc_index, similarity)."""
-        if self.faiss_index is None:
-            raise RuntimeError("FAISS index is not initialized.")
-        query_emb = get_ollama_embeddings([query])
-        faiss.normalize_L2(query_emb)
-        distances, indices = self.faiss_index.search(query_emb, top_k)
-        return [(int(indices[0][i]), float(distances[0][i])) for i in range(len(indices[0])) if indices[0][i] >= 0]
+        if faiss is None or self.faiss_index is None:
+            return []
+        try:
+            query_emb = get_ollama_embeddings([query])
+            faiss.normalize_L2(query_emb)
+            distances, indices = self.faiss_index.search(query_emb, top_k)
+            return [(int(indices[0][i]), float(distances[0][i])) for i in range(len(indices[0])) if indices[0][i] >= 0]
+        except Exception:
+            return []
 
     def search_records(
         self,
@@ -319,8 +330,9 @@ class HybridSearchEngine:
             effective_bm25 = (idx in bm25_rank_map) and (overlap_ratio >= 0.25 or len(overlap) >= 2)
 
             # Composite normalized match score in [0, 1]
-            if effective_bm25 and faiss_sim >= 0.52:
-                match_score = round(norm_rrf * (0.4 + 0.6 * faiss_sim), 4)
+            if effective_bm25 and (faiss_sim >= 0.52 or not faiss_results):
+                effective_sim = faiss_sim if faiss_results else 0.75
+                match_score = round(norm_rrf * (0.4 + 0.6 * effective_sim), 4)
             elif faiss_sim >= 0.60 and (overlap_ratio >= 0.20 or len(overlap) >= 2):
                 match_score = round(norm_rrf * faiss_sim, 4)
             elif effective_bm25 and faiss_sim >= 0.40:

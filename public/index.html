@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aviation Maintenance RAG Copilot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1E3A8A;
+      --primary-light: #2563EB;
+      --bg: #0B0F19;
+      --card-bg: #111827;
+      --card-border: #1F2937;
+      --text: #F3F4F6;
+      --text-muted: #9CA3AF;
+      --accent: #38BDF8;
+      --danger: #EF4444;
+      --danger-bg: #450A0A;
+      --danger-border: #DC2626;
+      --warning: #F59E0B;
+      --warning-bg: #451A03;
+      --success: #10B981;
+      --code-bg: #1E293B;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: linear-gradient(180deg, #131D33 0%, var(--bg) 100%);
+      border-bottom: 1px solid var(--card-border);
+      padding: 1.25rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .logo-area { display: flex; align-items: center; gap: 0.75rem; }
+    .logo-area h1 { font-size: 1.35rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.02em; }
+    .logo-badge {
+      font-size: 0.7rem;
+      background: #1E293B;
+      color: var(--accent);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      border: 1px solid #334155;
+    }
+    .header-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      margin-left: 1rem;
+      transition: color 0.2s;
+    }
+    .header-links a:hover { color: var(--accent); }
+    main {
+      flex: 1;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.5rem;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 1.5rem;
+    }
+    @media (max-width: 1024px) {
+      main { grid-template-columns: 1fr; }
+    }
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--card-border);
+      font-weight: 700;
+      font-size: 0.95rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0E1526;
+    }
+    .panel-body { padding: 1.25rem; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
+    
+    /* Query Input Area */
+    .input-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      background: #0F172A;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid #1E293B;
+    }
+    .input-row { display: flex; gap: 0.5rem; }
+    .input-row input {
+      flex: 1;
+      background: #1E293B;
+      border: 1px solid #334155;
+      color: #FFFFFF;
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      outline: none;
+      font-family: inherit;
+    }
+    .input-row input:focus { border-color: var(--primary-light); }
+    .btn-primary {
+      background: var(--primary-light);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover { background: #1D4ED8; }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    
+    /* Sample Buttons */
+    .samples { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+    .sample-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
+    .sample-chip {
+      background: #1E293B;
+      color: #CBD5E1;
+      border: 1px solid #334155;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .sample-chip:hover {
+      background: #334155;
+      color: #FFFFFF;
+      border-color: var(--accent);
+    }
+    .sample-chip.recurrence { border-color: #EF4444; color: #FCA5A5; }
+    
+    /* Alerts */
+    .recurrence-alert {
+      background: var(--danger-bg);
+      border: 2px solid var(--danger-border);
+      border-left: 6px solid var(--danger);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      animation: fadeIn 0.3s ease;
+    }
+    .recurrence-alert-title {
+      font-weight: 800;
+      color: #FCA5A5;
+      font-size: 1rem;
+      margin-bottom: 0.25rem;
+    }
+    .recurrence-alert-desc {
+      color: #FECACA;
+      font-size: 0.88rem;
+    }
+    .refusal-alert {
+      background: var(--warning-bg);
+      border-left: 4px solid var(--warning);
+      padding: 0.75rem 1rem;
+      border-radius: 4px;
+      color: #FDE68A;
+      font-size: 0.9rem;
+    }
+    
+    /* Chat Content */
+    .chat-bubble {
+      background: #172033;
+      border: 1px solid #23314D;
+      border-radius: 8px;
+      padding: 1.25rem;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    .chat-bubble h3 { margin-top: 1rem; margin-bottom: 0.5rem; color: #93C5FD; font-size: 1.05rem; }
+    .chat-bubble h3:first-child { margin-top: 0; }
+    .chat-bubble ul { margin-left: 1.5rem; margin-bottom: 0.75rem; }
+    .chat-bubble li { margin-bottom: 0.25rem; }
+    .citation-tag {
+      background: #1E3A8A;
+      color: #BFDBFE;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .citation-bar {
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #23314D;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    
+    /* Tabs on Right Panel */
+    .tab-nav {
+      display: flex;
+      background: #0E1526;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 0.75rem;
+      text-align: center;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      background: #131D33;
+    }
+    .tab-content { display: none; padding: 1.25rem; overflow-y: auto; flex: 1; }
+    .tab-content.active { display: block; }
+    
+    /* Record Card */
+    .record-card {
+      background: #172033;
+      border: 1px solid #23314D;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+    }
+    .record-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .record-id { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #93C5FD; }
+    .score-badge {
+      background: #78350F;
+      color: #FDE68A;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .record-field { margin-top: 0.5rem; font-size: 0.85rem; }
+    .record-label { color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+    .record-text { background: var(--code-bg); padding: 0.4rem 0.6rem; border-radius: 4px; font-family: 'JetBrains Mono', monospace; margin-top: 0.2rem; }
+    
+    /* Spinner */
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 0.8s linear infinite;
+      margin-right: 0.5rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo-area">
+      <span style="font-size: 1.5rem;">✈️</span>
+      <div>
+        <h1>Aviation Maintenance RAG Copilot</h1>
+        <div style="font-size: 0.78rem; color: var(--text-muted);">MaintNet Historical Diagnostic Intelligence & Safety Guardrails</div>
+      </div>
+    </div>
+    <div class="header-links">
+      <span class="logo-badge">Vercel Ready</span>
+      <a href="/docs" target="_blank">API Docs</a>
+      <a href="https://github.com/SarveshwarNS/Aviation_Maintanence_Copilot-NexAIHack" target="_blank">GitHub</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Left Column: Diagnostic Chat -->
+    <div class="panel">
+      <div class="panel-header">
+        <span>💬 Logbook Diagnostic Assistant</span>
+        <span id="status-pill" style="font-size: 0.75rem; color: #10B981;">● Online</span>
+      </div>
+      <div class="panel-body">
+        <div class="input-box">
+          <div class="input-row">
+            <input type="text" id="query-input" placeholder="e.g. ENG 1 CYLINDER PLUG FOULED, HYD SYS A LEAK..." autocomplete="off">
+            <button id="diagnose-btn" class="btn-primary" onclick="submitQuery()">🔍 Diagnose</button>
+          </div>
+          <div class="samples">
+            <span class="sample-label">Quick Samples:</span>
+            <span class="sample-chip recurrence" onclick="setQuery('ENG 1 CYLINDER PLUG FOULED')">🚨 ENG 1 CYLINDER PLUG FOULED</span>
+            <span class="sample-chip" onclick="setQuery('ENG OIL PRESS LOW')">ENG OIL PRESS LOW</span>
+            <span class="sample-chip" onclick="setQuery('ACFT HYD SYS A LEAK REPL PUMP')">HYD SYS A LEAK</span>
+            <span class="sample-chip" onclick="setQuery('TCAS TRAFFIC COLLISION RESOLUTION ADVISORY COMPUTATION ERROR')">🛡️ TCAS (Refusal Test)</span>
+          </div>
+        </div>
+
+        <div id="alert-container"></div>
+        <div id="chat-output">
+          <div style="color: var(--text-muted); text-align: center; padding: 2rem;">
+            Enter an aircraft discrepancy above or select a sample query to analyze historical logbooks.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Verification Panel -->
+    <div class="panel">
+      <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('tab-records')">📑 Cited Records</button>
+        <button class="tab-btn" onclick="switchTab('tab-trace')">⚙️ Agent Trace</button>
+        <button class="tab-btn" onclick="switchTab('tab-entities')">🔤 Entity & Recurrence</button>
+      </div>
+
+      <div id="tab-records" class="tab-content active">
+        <div id="records-list" style="color: var(--text-muted);">
+          Submit a query to inspect cited historical logbook entries.
+        </div>
+      </div>
+
+      <div id="tab-trace" class="tab-content">
+        <pre id="trace-json" style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; background: var(--code-bg); padding: 1rem; border-radius: 6px; overflow-x: auto; color: #E2E8F0;">Execution trace steps will appear here.</pre>
+      </div>
+
+      <div id="tab-entities" class="tab-content">
+        <div id="entity-view" style="font-size: 0.88rem; color: var(--text-muted);">
+          Normalized tokens, extracted component entities, and fleet recurrence details will appear here.
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function setQuery(text) {
+      document.getElementById('query-input').value = text;
+      submitQuery();
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    async function submitQuery() {
+      const input = document.getElementById('query-input');
+      const query = input.value.trim();
+      if (!query) return;
+
+      const btn = document.getElementById('diagnose-btn');
+      const chatOut = document.getElementById('chat-output');
+      const alertContainer = document.getElementById('alert-container');
+      const recordsList = document.getElementById('records-list');
+      const traceJson = document.getElementById('trace-json');
+      const entityView = document.getElementById('entity-view');
+
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span>Analyzing...`;
+      alertContainer.innerHTML = '';
+      chatOut.innerHTML = `<div style="text-align:center; padding: 2rem; color: var(--text-muted);"><span class="spinner"></span>Searching historical logbooks & synthesizing diagnosis...</div>`;
+
+      try {
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: query })
+        });
+
+        if (!response.ok) {
+          throw new Error(`API responded with ${response.status}: ${await response.text()}`);
+        }
+
+        const data = await response.json();
+
+        // 1. Check Recurrence Alert
+        if (data.recurring_defect_info && data.recurring_defect_info.is_recurring) {
+          const comp = data.recurring_defect_info.component || 'UNKNOWN';
+          const cnt = data.recurring_defect_info.count || 0;
+          alertContainer.innerHTML = `
+            <div class="recurrence-alert">
+              <div class="recurrence-alert-title">
+                🚨 FLEET RECURRENCE ALERT: Component [${comp}] has failed [${cnt}] times in historical logbooks.
+              </div>
+              <div class="recurrence-alert-desc">
+                Consider root-cause analysis rather than isolated component replacement.
+              </div>
+            </div>
+          `;
+        }
+
+        // 2. Format Answer Text
+        let formatted = data.answer || 'No answer generated.';
+        formatted = formatted.replace(/\[Record #?(\d+)\]/g, '<span class="citation-tag">[Record #$1]</span>');
+        formatted = formatted.replace(/### (.*?)\n/g, '<h3>$1</h3>');
+        formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        formatted = formatted.replace(/- (.*?)\n/g, '<li>$1</li>');
+        formatted = formatted.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+
+        let isRefused = data.answer && data.answer.includes('Insufficient evidence in historical logbooks');
+        let refusalHtml = isRefused ? `<div class="refusal-alert">⚠️ Refused: Insufficient evidence in historical logbooks to provide a confident fix.</div>` : '';
+
+        chatOut.innerHTML = `
+          ${refusalHtml}
+          <div class="chat-bubble">
+            ${formatted}
+            ${data.cited_records && data.cited_records.length > 0 ? `
+              <div class="citation-bar">
+                <strong>Citations:</strong> ${data.cited_records.map(r => `<span class="citation-tag">[Record #${r.ident}]</span>`).join(' ')}
+              </div>
+            ` : ''}
+          </div>
+        `;
+
+        // 3. Populate Cited Records Tab
+        if (data.cited_records && data.cited_records.length > 0) {
+          recordsList.innerHTML = data.cited_records.map((r, i) => `
+            <div class="record-card">
+              <div class="record-header">
+                <span class="record-id">📌 Record #${r.ident}</span>
+                <span class="score-badge">Match: ${(r.score || 0).toFixed(3)}</span>
+              </div>
+              <div class="record-field">
+                <div class="record-label">Problem:</div>
+                <div class="record-text">${r.problem_normalized || r.problem || 'N/A'}</div>
+              </div>
+              <div class="record-field">
+                <div class="record-label">Action:</div>
+                <div class="record-text">${r.action_normalized || r.action || 'N/A'}</div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          recordsList.innerHTML = `<div style="color: var(--text-muted); padding: 1rem;">No records cited.</div>`;
+        }
+
+        // 4. Populate Trace Tab
+        traceJson.textContent = JSON.stringify(data.tool_trace || [], null, 2);
+
+        // 5. Populate Entities & Recurrence Tab
+        const rec = data.recurring_defect_info || {};
+        entityView.innerHTML = `
+          <div style="margin-bottom: 1rem;">
+            <div class="record-label">Reported Query:</div>
+            <div style="font-weight: 700; color: #FFFFFF; font-size: 1rem; margin-top: 0.2rem;">${query}</div>
+          </div>
+          <div style="margin-bottom: 1rem;">
+            <div class="record-label">Fleet Recurrence Status:</div>
+            <div style="margin-top: 0.3rem;">
+              ${rec.is_recurring ? `
+                <div style="color: #FCA5A5; font-weight: 700;">🚨 HIGH SEVERITY: Recurring Failure</div>
+                <div style="color: #CBD5E1; margin-top: 0.2rem;">Component <strong>${rec.component}</strong> occurred in ${rec.count} retrieved logbooks (${(rec.records || []).join(', ')}).</div>
+              ` : `
+                <div style="color: #6EE7B7; font-weight: 600;">✅ Normal Pattern: No >= 3 recurring defect cluster.</div>
+              `}
+            </div>
+          </div>
+        `;
+
+      } catch (err) {
+        chatOut.innerHTML = `<div style="color: #EF4444; padding: 1rem; background: var(--danger-bg); border-radius: 6px;">Error communicating with Copilot API: ${err.message}</div>`;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `🔍 Diagnose`;
+      }
+    }
+
+    document.getElementById('query-input').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') submitQuery();
+    });
+  </script>
+</body>
+</html>
