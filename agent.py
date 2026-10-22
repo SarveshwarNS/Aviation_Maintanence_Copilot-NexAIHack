@@ -15,6 +15,7 @@ import os
 import re
 import urllib.request
 import uuid
+from pathlib import Path
 from typing import Any, Dict, List, Optional, TypedDict
 
 from dotenv import load_dotenv
@@ -29,6 +30,7 @@ from langgraph.graph import END, StateGraph
 from search_engine import detect_recurring_defects, get_record, search_records
 from utils.normalizer import normalize_text
 
+load_dotenv(Path(__file__).resolve().parent / '.env')
 load_dotenv()
 
 REFUSAL_THRESHOLD = 0.35
@@ -60,12 +62,64 @@ TOOLS = [search_records_tool, get_record_tool]
 # ---------------------------------------------------------------------------
 # LLM Initialization with Cloud Gemini & Local Ollama Support
 # ---------------------------------------------------------------------------
-class GeminiLLM:
-    """Lightweight LangChain-compatible wrapper for Google Gemini API."""
+def get_all_gemini_keys() -> list[str]:
+    """Collect all unique Gemini API keys from environment variables."""
+    keys: list[str] = []
+    for var in [
+        "GEMINI_API_KEYS",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "GEMINI_API_KEY_FALLBACK",
+        "GEMINI_API_KEY_SECONDARY",
+    ]:
+        val = (os.getenv(var) or "").strip()
+        if val:
+            for k in val.split(","):
+                k_clean = k.strip()
+                if k_clean and k_clean not in keys:
+                    keys.append(k_clean)
+    return keys
 
-    def __init__(self, api_key: str, model: str | None = None) -> None:
-        self.api_key = api_key
-        self.model = model or os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+
+class GeminiLLM:
+    """Lightweight LangChain-compatible wrapper for Google Gemini API with multi-model and multi-key fallback."""
+
+    DEFAULT_MODELS = [
+        "gemini-3-flash-preview",
+        "gemini-3.5-flash",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-3.8-flash",
+        "gemini-flash-latest",
+        "gemini-robotics-er-2-preview",
+    ]
+
+    def __init__(
+        self,
+        api_keys: list[str] | str,
+        models: list[str] | str | None = None,
+        timeout: int = 15,
+    ) -> None:
+        if isinstance(api_keys, str):
+            self.api_keys = [k.strip() for k in api_keys.split(",") if k.strip()]
+        else:
+            self.api_keys = [k for k in api_keys if k]
+
+        configured: list[str] = []
+        if isinstance(models, str):
+            configured = [m.strip() for m in models.split(",") if m.strip()]
+        elif isinstance(models, list):
+            configured = [m for m in models if m]
+
+        # Prioritize configured models, then append default fallback models
+        seen = set()
+        self.models: list[str] = []
+        for m in configured + self.DEFAULT_MODELS:
+            clean_m = m.replace("models/", "").strip()
+            if clean_m and clean_m not in seen:
+                seen.add(clean_m)
+                self.models.append(clean_m)
+
+        self.timeout = timeout
 
     def invoke(self, messages: list[Any]) -> AIMessage:
         prompt_lines = []
@@ -82,48 +136,62 @@ class GeminiLLM:
                 prompt_lines.append(f"{content}\n")
 
         prompt_text = "\n".join(prompt_lines)
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         payload = json.dumps({
             "contents": [{"parts": [{"text": prompt_text}]}],
             "generationConfig": {"temperature": 0.2, "maxOutputTokens": 3072},
         }).encode("utf-8")
 
-        try:
-            req = urllib.request.Request(
-                url,
-                data=payload,
-                headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
-            )
-            with urllib.request.urlopen(req, timeout=45) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                candidates = data.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    text_parts = [p.get("text", "") for p in parts if "text" in p]
-                    text = "\n".join(text_parts).strip()
-                    if text:
-                        return AIMessage(content=text)
-        except Exception as exc:
-            print(f"Cloud Gemini request failed or timed out ({exc}); falling back to local Ollama...")
-            try:
-                base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-                model_name = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
-                chat_model = ChatOllama(model=model_name, base_url=base_url, temperature=0.1)
-                return chat_model.invoke(messages)
-            except Exception as o_exc:
-                print(f"Ollama fallback error: {o_exc}")
+        for key in self.api_keys:
+            masked_key = key[:6] + "..." + key[-4:] if len(key) > 10 else "***"
+            for model_name in self.models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
+                try:
+                    req = urllib.request.Request(
+                        url,
+                        data=payload,
+                        headers={
+                            "Content-Type": "application/json",
+                            "x-goog-api-key": key,
+                        },
+                    )
+                    with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        candidates = data.get("candidates", [])
+                        if candidates:
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            text_parts = [p.get("text", "") for p in parts if "text" in p]
+                            text = "\n".join(text_parts).strip()
+                            if text:
+                                return AIMessage(content=text)
+                except Exception as exc:
+                    print(
+                        f"[!] Gemini model '{model_name}' (key {masked_key}) unavailable or limit reached ({exc}). Falling back to next model..."
+                    )
+                    continue
 
-        return AIMessage(content="Unable to generate response from either Gemini or Ollama.")
+        # If all cloud models failed, attempt local Ollama fallback
+        print("All Gemini models/keys exhausted; attempting local Ollama fallback...")
+        try:
+            base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+            model_name = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+            chat_model = ChatOllama(model=model_name, base_url=base_url, temperature=0.1)
+            return chat_model.invoke(messages)
+        except Exception as o_exc:
+            print(f"Ollama fallback error: {o_exc}")
+
+        return AIMessage(content="Unable to generate response from either Gemini cloud models or Ollama.")
 
 
 def get_llm():
-    """Initialize primary LLM (Google Gemini cloud if configured, else local ChatOllama)."""
-    google_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-    if google_api_key:
+    """Initialize primary LLM (Google Gemini cloud cascade if configured, else local ChatOllama)."""
+    api_keys = get_all_gemini_keys()
+    if api_keys:
         try:
-            model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
-            print(f"Initializing Google Gemini API ({model_name})...")
-            return GeminiLLM(api_key=google_api_key, model=model_name)
+            custom_models = os.getenv("GEMINI_MODELS") or os.getenv("GEMINI_MODEL")
+            gemini_client = GeminiLLM(api_keys=api_keys, models=custom_models)
+            models_display = ", ".join(gemini_client.models[:4])
+            print(f"Initializing Google Gemini API cascade (priority: {models_display})...")
+            return gemini_client
         except Exception as exc:
             print(f"Warning: Gemini init failed ({exc}), falling back to Ollama...")
 
