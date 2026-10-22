@@ -23,9 +23,12 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from agent import run_agent
+
+PUBLIC_INDEX = PROJECT_ROOT / "public" / "index.html"
 
 app = FastAPI(
     title="Aviation Maintenance Copilot API",
@@ -68,8 +71,10 @@ class ChatResponse(BaseModel):
 
 
 @app.get("/")
-def root() -> dict[str, Any]:
-    """Health check and service information."""
+def root():
+    """Serve the Web Cockpit UI directly or fallback to service info."""
+    if PUBLIC_INDEX.exists():
+        return FileResponse(PUBLIC_INDEX)
     return {
         "status": "online",
         "service": "Aviation Maintenance Copilot API",
@@ -78,6 +83,12 @@ def root() -> dict[str, Any]:
             "docs": "GET /docs",
         },
     }
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    """Health check endpoint."""
+    return {"status": "online"}
 
 
 @app.post("/chat", response_model=ChatResponse)
