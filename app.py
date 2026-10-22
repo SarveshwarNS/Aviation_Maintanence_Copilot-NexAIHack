@@ -92,6 +92,9 @@ def health() -> dict[str, str]:
 
 
 @app.post("/chat", response_model=ChatResponse)
+@app.post("/chat/", response_model=ChatResponse)
+@app.post("/api/chat", response_model=ChatResponse)
+@app.post("/api/chat/", response_model=ChatResponse)
 def chat_endpoint(request: ChatRequest) -> ChatResponse:
     """Process a maintenance query through the agentic RAG pipeline."""
     raw_query = request.query.strip()
