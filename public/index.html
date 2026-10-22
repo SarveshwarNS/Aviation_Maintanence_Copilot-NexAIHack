@@ -412,15 +412,48 @@
 
         // 1. Check Recurrence Alert
         if (data.recurring_defect_info && data.recurring_defect_info.is_recurring) {
-          const comp = data.recurring_defect_info.component || 'UNKNOWN';
-          const cnt = data.recurring_defect_info.count || 0;
+          const rec = data.recurring_defect_info;
+          const comp = rec.component || 'UNKNOWN';
+          const cnt = rec.count || 0;
+          const summary = rec.summary || '';
+          const symptoms = rec.symptoms || [];
+          const actions = rec.actions || [];
+
+          let detailsHtml = '';
+          if (summary) {
+            detailsHtml += `<div style="margin: 8px 0; color: #fca5a5; font-size: 0.92rem; font-weight: 500; line-height: 1.45;">${summary}</div>`;
+          }
+          if (symptoms.length > 0) {
+            detailsHtml += `
+              <div style="margin-top: 8px;">
+                <strong style="color: #f8fafc; font-size: 0.86rem; letter-spacing: 0.5px;">Documented Failure Symptoms:</strong>
+                <ul style="margin: 4px 0 6px 18px; padding: 0; font-size: 0.86rem; color: #cbd5e1;">
+                  ${symptoms.map(s => `<li style="margin-bottom: 3px;">${s}</li>`).join('')}
+                </ul>
+              </div>
+            `;
+          }
+          if (actions.length > 0) {
+            detailsHtml += `
+              <div style="margin-top: 6px;">
+                <strong style="color: #f8fafc; font-size: 0.86rem; letter-spacing: 0.5px;">Historical Fleet Corrective Actions:</strong>
+                <ul style="margin: 4px 0 6px 18px; padding: 0; font-size: 0.86rem; color: #cbd5e1;">
+                  ${actions.map(a => `<li style="margin-bottom: 3px;">${a}</li>`).join('')}
+                </ul>
+              </div>
+            `;
+          }
+
           alertContainer.innerHTML = `
             <div class="recurrence-alert">
               <div class="recurrence-alert-title">
-                🚨 FLEET RECURRENCE ALERT: Component [${comp}] has failed [${cnt}] times in historical logbooks.
+                🚨 FLEET RECURRENCE ALERT: [${comp}] has ${cnt} recurring write-ups in historical logbooks
               </div>
               <div class="recurrence-alert-desc">
-                Consider root-cause analysis rather than isolated component replacement.
+                ${detailsHtml}
+                <div style="margin-top: 8px; font-size: 0.84rem; color: #fcd34d;">
+                  💡 <em>Root-Cause Advisory: Repeated write-ups indicate a systemic issue rather than an isolated component failure. Investigate underlying valves, lines, and transducers.</em>
+                </div>
               </div>
             </div>
           `;
@@ -429,10 +462,15 @@
         // 2. Format Answer Text
         let formatted = data.answer || 'No answer generated.';
         formatted = formatted.replace(/\[Record #?(\d+)\]/g, '<span class="citation-tag">[Record #$1]</span>');
-        formatted = formatted.replace(/### (.*?)\n/g, '<h3>$1</h3>');
+        formatted = formatted.replace(/---/g, '<hr style="border: 0; border-top: 1px solid var(--border); margin: 1.25rem 0;">');
+        formatted = formatted.replace(/^### (.*?)$/gm, '<h3 style="margin-top: 1.2rem; margin-bottom: 0.5rem; color: #38bdf8; font-size: 1.2rem;">$1</h3>');
+        formatted = formatted.replace(/^## (.*?)$/gm, '<h2 style="margin-top: 1.4rem; margin-bottom: 0.6rem; color: #f8fafc; font-size: 1.35rem;">$1</h2>');
         formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        formatted = formatted.replace(/- (.*?)\n/g, '<li>$1</li>');
-        formatted = formatted.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+        formatted = formatted.replace(/^\s*[-*]\s+(.*?)$/gm, '<li>$1</li>');
+        formatted = formatted.replace(/(<li>.*<\/li>)/gs, '<ul style="margin: 0.5rem 0 1rem 1.2rem; padding: 0;">$1</ul>');
+        formatted = formatted.replace(/\n\n+/g, '</p><p style="margin: 0.75rem 0; line-height: 1.6;">');
+        formatted = formatted.replace(/\n/g, '<br/>');
+        formatted = `<p style="margin: 0.75rem 0; line-height: 1.6;">${formatted}</p>`;
 
         let isRefused = data.answer && data.answer.includes('Insufficient evidence in historical logbooks');
         let refusalHtml = isRefused ? `<div class="refusal-alert">⚠️ Refused: Insufficient evidence in historical logbooks to provide a confident fix.</div>` : '';

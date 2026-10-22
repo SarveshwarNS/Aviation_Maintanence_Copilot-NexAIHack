@@ -410,6 +410,58 @@ def get_record(record_id: str | int) -> dict[str, Any] | None:
     return engine.get_record(record_id=record_id)
 
 
+GENERIC_TERMS = {
+    "pressure", "system", "check", "inspection", "operation", "remove", "replace",
+    "installed", "condition", "unit", "level", "service", "high", "low", "assembly",
+    "line", "leak", "fail", "failure",
+}
+
+
+def _resolve_component_label(comp: str, all_text: str) -> str:
+    """Enhance single-word or generic terms into specific aviation subsystems."""
+    lower_text = all_text.lower()
+    lower_comp = comp.lower()
+
+    if lower_comp == "pressure":
+        if "oil" in lower_text or "eng" in lower_text:
+            return "ENGINE OIL PRESSURE SYSTEM"
+        elif "hyd" in lower_text or "hydraulic" in lower_text:
+            return "HYDRAULIC PRESSURE SYSTEM"
+        elif "fuel" in lower_text:
+            return "FUEL PRESSURE SYSTEM"
+        elif "manifold" in lower_text:
+            return "MANIFOLD PRESSURE SYSTEM"
+        return "PRESSURE SENSOR & MONITORING SYSTEM"
+
+    if lower_comp in ("cylinder", "cyl"):
+        return "CYLINDER POWER SECTION"
+
+    if lower_comp in ("engine", "eng"):
+        if "oil" in lower_text:
+            return "ENGINE OIL SYSTEM"
+        return "POWERPLANT / ENGINE SYSTEM"
+
+    if lower_comp == "magneto":
+        return "MAGNETO IGNITION SYSTEM"
+
+    if lower_comp == "valve":
+        if "relief" in lower_text:
+            return "PRESSURE RELIEF VALVE"
+        return "VALVE / FLOW REGULATOR"
+
+    if lower_comp == "pump":
+        if "hyd" in lower_text or "hydraulic" in lower_text:
+            return "HYDRAULIC PUMP ASSEMBLY"
+        elif "fuel" in lower_text:
+            return "FUEL PUMP ASSEMBLY"
+        return "FLUID PUMP ASSEMBLY"
+
+    if lower_comp == "gasket":
+        return "GASKET / SEAL INTEGRITY"
+
+    return f"{comp.upper()} ASSEMBLY"
+
+
 def detect_recurring_defects(retrieved_records: list[dict[str, Any]]) -> dict[str, Any]:
     """Detect recurring component or fault patterns across retrieved records.
 
@@ -431,7 +483,10 @@ def detect_recurring_defects(retrieved_records: list[dict[str, Any]]) -> dict[st
                 "component": name,
                 "count": freq,
                 "severity": "HIGH",
-                "records": [record_ids]
+                "records": [record_ids],
+                "symptoms": ["Symptom 1", "Symptom 2", ...],
+                "actions": ["Action 1", "Action 2", ...],
+                "summary": "Detailed technical explanation..."
             }
         Otherwise:
             {"is_recurring": False}
@@ -465,18 +520,58 @@ def detect_recurring_defects(retrieved_records: list[dict[str, Any]]) -> dict[st
     ]
 
     if recurring_candidates:
-        # Sort by frequency descending
-        recurring_candidates.sort(key=lambda item: len(item[1]), reverse=True)
+        # Prioritize domain-specific hardware terms over generic measurement terms
+        def _rank_candidate(item):
+            comp_name, rec_ids = item
+            is_generic = comp_name.lower() in GENERIC_TERMS
+            return (0 if is_generic else 1, len(rec_ids), len(comp_name))
+
+        recurring_candidates.sort(key=_rank_candidate, reverse=True)
         top_comp, matched_records = recurring_candidates[0]
+
+        # Aggregate all matching text for contextual component labeling
+        matched_text_list = []
+        symptoms = []
+        actions = []
+
+        for r in retrieved_records:
+            if r.get("ident") in matched_records:
+                prob = (r.get("problem_normalized") or r.get("problem") or "").strip()
+                act = (r.get("action_normalized") or r.get("action") or "").strip()
+                matched_text_list.append(f"{prob} {act}")
+
+                if prob and prob not in symptoms:
+                    clean_prob = prob[0].upper() + prob[1:] if len(prob) > 1 else prob
+                    symptoms.append(clean_prob)
+                if act and act not in actions:
+                    clean_act = act[0].upper() + act[1:] if len(act) > 1 else act
+                    actions.append(clean_act)
+
+        all_text = " ".join(matched_text_list)
+        resolved_label = _resolve_component_label(top_comp, all_text)
+
+        # Generate a concise, informative engineering summary
+        symptom_snippet = "; ".join(symptoms[:2]) if symptoms else "recurring operational discrepancies"
+        action_snippet = "; ".join(actions[:2]) if actions else "component adjustments and servicing"
+        summary = (
+            f"Chronic fleet pattern detected across {len(matched_records)} records involving {resolved_label.title()}. "
+            f"Logged discrepancies include: {symptom_snippet}. "
+            f"Historical corrective actions: {action_snippet}."
+        )
+
         return {
             "is_recurring": True,
-            "component": top_comp.upper(),
+            "component": resolved_label,
             "count": len(matched_records),
             "severity": "HIGH",
             "records": matched_records,
+            "symptoms": symptoms[:4],
+            "actions": actions[:4],
+            "summary": summary,
         }
 
     return {"is_recurring": False}
+
 
 
 if __name__ == "__main__":

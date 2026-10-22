@@ -118,19 +118,39 @@ def render_recurrence_card(rec_info: dict[str, Any]) -> None:
     if rec_info and rec_info.get("is_recurring"):
         name = rec_info.get("component", "UNKNOWN")
         x = rec_info.get("count", 0)
+        summary = rec_info.get("summary", "")
+        symptoms = rec_info.get("symptoms", [])
+        actions = rec_info.get("actions", [])
+
+        symptoms_html = ""
+        if symptoms:
+            items = "".join(f"<li>{s}</li>" for s in symptoms)
+            symptoms_html = f"<div style='margin-top: 6px;'><strong>Documented Symptoms:</strong><ul style='margin: 4px 0 6px 18px; padding: 0;'>{items}</ul></div>"
+
+        actions_html = ""
+        if actions:
+            items = "".join(f"<li>{a}</li>" for a in actions)
+            actions_html = f"<div style='margin-top: 6px;'><strong>Historical Fleet Fixes:</strong><ul style='margin: 4px 0 6px 18px; padding: 0;'>{items}</ul></div>"
+
         st.markdown(
             f"""
             <div class='recurrence-alert-card'>
                 <div class='recurrence-alert-title'>
-                    🚨 FLEET RECURRENCE ALERT: Component [{name}] has failed [{x}] times in historical logbooks.
+                    🚨 FLEET RECURRENCE ALERT: [{name}] has {x} recurring write-ups in historical logbooks
                 </div>
                 <div class='recurrence-alert-body'>
-                    Consider root-cause analysis rather than isolated component replacement.
+                    {f"<div style='margin: 6px 0; color: #fca5a5;'>{summary}</div>" if summary else ""}
+                    {symptoms_html}
+                    {actions_html}
+                    <div style='margin-top: 8px; font-size: 0.85rem; color: #fcd34d;'>
+                        💡 <em>Root-Cause Advisory: Repeated write-ups indicate a systemic issue rather than an isolated component failure. Investigate underlying valves, lines, and sensors.</em>
+                    </div>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
+
 
 
 # ---------------------------------------------------------------------------
