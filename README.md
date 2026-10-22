@@ -159,7 +159,7 @@ flowchart TD
     Router -- "Yes (Score >= 0.35)" --> GenerateNode
     GenerateNode --> DefectDetector
     
-    GenerateNode -->|Cites [Record #XXXXXX]| ChatEndpoint
+    GenerateNode -->|Cites Verified Record IDs| ChatEndpoint
     DefectDetector --> ChatEndpoint
     RefusalNode --> ChatEndpoint
     ChatEndpoint -->|JSON Response| UI
@@ -206,7 +206,7 @@ stateDiagram-v2
         ToolCallCheck --> RecordFetch: Yes (Tool Call)
         RecordFetch --> Synthesis: Grounded Action
         ToolCallCheck --> Synthesis: No
-        Synthesis --> CitationEnforcement: Extract [Record #ID]
+        Synthesis --> CitationEnforcement: Extract Verified Record IDs
         CitationEnforcement --> DefectPatternCheck: Check >= 3 occurrences
     }
     
