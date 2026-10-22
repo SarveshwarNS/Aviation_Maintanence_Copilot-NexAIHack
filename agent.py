@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import urllib.request
 import uuid
 from typing import Any, Dict, List, Optional, TypedDict
 
@@ -54,31 +55,59 @@ TOOLS = [search_records_tool, get_record_tool]
 
 
 # ---------------------------------------------------------------------------
-# LLM Initialization with Fallback Support
+# LLM Initialization with Cloud Gemini & Local Ollama Support
 # ---------------------------------------------------------------------------
+class GeminiLLM:
+    """Lightweight LangChain-compatible wrapper for Google Gemini API."""
+
+    def __init__(self, api_key: str, model: str = "gemini-3.8-flash") -> None:
+        self.api_key = api_key
+        self.model = model
+
+    def invoke(self, messages: list[Any]) -> AIMessage:
+        prompt_lines = []
+        for msg in messages:
+            msg_type = getattr(msg, "type", "user")
+            content = getattr(msg, "content", "")
+            if msg_type == "system":
+                prompt_lines.append(f"System Instructions:\n{content}\n")
+            elif msg_type == "human":
+                prompt_lines.append(f"User Problem:\n{content}\n")
+            elif msg_type == "tool":
+                prompt_lines.append(f"Retrieved Historical Records:\n{content}\n")
+            elif content:
+                prompt_lines.append(f"{content}\n")
+
+        prompt_text = "\n".join(prompt_lines)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        payload = json.dumps({
+            "contents": [{"parts": [{"text": prompt_text}]}],
+            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1024},
+        }).encode("utf-8")
+
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            candidates = data.get("candidates", [])
+            if candidates:
+                text = candidates[0]["content"]["parts"][0]["text"].strip()
+                return AIMessage(content=text)
+        return AIMessage(content="No response generated.")
+
+
 def get_llm():
-    """Initialize primary ChatOllama qwen2.5:3b with optional cloud fallback."""
-    # Check if Groq API key is present
-    groq_api_key = os.getenv("GROQ_API_KEY")
-    if groq_api_key:
-        try:
-            from langchain_groq import ChatGroq
-
-            print("Using ChatGroq fallback...")
-            return ChatGroq(model_name="qwen-2.5-32b", api_key=groq_api_key).bind_tools(TOOLS)
-        except Exception:
-            pass
-
-    # Check if Google Generative AI API key is present
-    google_api_key = os.getenv("GOOGLE_API_KEY")
+    """Initialize primary LLM (Google Gemini cloud if configured, else local ChatOllama)."""
+    google_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if google_api_key:
         try:
-            from langchain_google_genai import ChatGoogleGenerativeAI
-
-            print("Using ChatGoogleGenerativeAI fallback...")
-            return ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=google_api_key).bind_tools(TOOLS)
-        except Exception:
-            pass
+            print("Initializing Google Gemini API (gemini-3.8-flash)...")
+            return GeminiLLM(api_key=google_api_key, model="gemini-3.8-flash")
+        except Exception as exc:
+            print(f"Warning: Gemini init failed ({exc}), falling back to Ollama...")
 
     # Primary local model: qwen2.5:3b via Ollama
     base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
