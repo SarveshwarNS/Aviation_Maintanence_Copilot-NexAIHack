@@ -398,6 +398,75 @@ def get_record(record_id: str | int) -> dict[str, Any] | None:
     return engine.get_record(record_id=record_id)
 
 
+def detect_recurring_defects(retrieved_records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Detect recurring component or fault patterns across retrieved records.
+
+    Extracts domain components from each record using extract_domain_terms,
+    counts component co-occurrences across the retrieved records, and
+    flags recurring patterns if any component appears >= 3 times.
+
+    Parameters
+    ----------
+    retrieved_records : list[dict]
+        List of historical logbook records returned from retrieval.
+
+    Returns
+    -------
+    dict[str, Any]
+        If any component/fault pattern appears >= 3 times:
+            {
+                "is_recurring": True,
+                "component": name,
+                "count": freq,
+                "severity": "HIGH",
+                "records": [record_ids]
+            }
+        Otherwise:
+            {"is_recurring": False}
+    """
+    if not retrieved_records:
+        return {"is_recurring": False}
+
+    component_records: dict[str, list[int | str]] = {}
+
+    for record in retrieved_records:
+        rec_id = record.get("ident")
+        # Extract domain terms from text representations
+        text = record.get("combined_text") or f"{record.get('problem', '')} {record.get('action', '')}"
+        extracted_terms = extract_domain_terms(text)
+        if not extracted_terms and record.get("domain_terms"):
+            extracted_terms = record.get("domain_terms", [])
+
+        # Count per-record occurrence to avoid duplicate counting within a single logbook entry
+        for term in set(extracted_terms):
+            canonical = term.strip()
+            if not canonical:
+                continue
+            if canonical not in component_records:
+                component_records[canonical] = []
+            if rec_id is not None:
+                component_records[canonical].append(rec_id)
+
+    # Filter for components or fault patterns appearing >= 3 times
+    recurring_candidates = [
+        (comp, rec_ids) for comp, rec_ids in component_records.items() if len(rec_ids) >= 3
+    ]
+
+    if recurring_candidates:
+        # Sort by frequency descending
+        recurring_candidates.sort(key=lambda item: len(item[1]), reverse=True)
+        top_comp, matched_records = recurring_candidates[0]
+        return {
+            "is_recurring": True,
+            "component": top_comp.upper(),
+            "count": len(matched_records),
+            "severity": "HIGH",
+            "records": matched_records,
+        }
+
+    return {"is_recurring": False}
+
+
 if __name__ == "__main__":
     rebuild_flag = "--rebuild" in sys.argv
 
