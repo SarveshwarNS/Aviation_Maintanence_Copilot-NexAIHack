@@ -49,12 +49,16 @@ app.add_middleware(
 @app.middleware("http")
 async def normalize_vercel_paths(request, call_next):
     """Normalize internal Vercel rewrites to ensure clean route matching."""
-    path = request.scope.get("path", "")
-    for prefix in ["/api/index.py", "/index.py"]:
-        if prefix in path:
-            new_path = path.replace(prefix, "") or "/"
-            request.scope["path"] = new_path
-            break
+    matched = request.headers.get("x-matched-path")
+    if matched and not matched.startswith("/api/index"):
+        request.scope["path"] = matched
+    else:
+        path = request.scope.get("path", "")
+        if path in ("/api/index.py", "/index.py", "/api", "/api/"):
+            if request.method == "POST":
+                request.scope["path"] = "/chat"
+            else:
+                request.scope["path"] = "/"
     return await call_next(request)
 
 
@@ -115,6 +119,7 @@ def health() -> dict[str, str]:
 @app.post("/api/index", response_model=ChatResponse)
 @app.post("/api", response_model=ChatResponse)
 @app.post("/api/", response_model=ChatResponse)
+@app.post("/", response_model=ChatResponse)
 def chat_endpoint(request: ChatRequest) -> ChatResponse:
   """Process a maintenance query through the agentic RAG pipeline."""
   raw_query = request.query.strip()
