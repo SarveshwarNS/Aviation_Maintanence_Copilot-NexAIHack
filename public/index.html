@@ -379,15 +379,22 @@
       chatOut.innerHTML = `<div style="text-align:center; padding: 2rem; color: var(--text-muted);"><span class="spinner"></span>Searching historical logbooks & synthesizing diagnosis...</div>`;
 
       try {
-        let response = await fetch('/chat', {
+        let response = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: query })
         });
 
-        // Fallback to /api/chat if /chat is not mapped directly by Vercel
-        if (response.status === 404) {
-          response = await fetch('/api/chat', {
+        // Fallbacks for different Vercel rewrite router behaviors
+        if (!response.ok && response.status === 404) {
+          response = await fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: query })
+          });
+        }
+        if (!response.ok && response.status === 404) {
+          response = await fetch('/api/index.py', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: query })

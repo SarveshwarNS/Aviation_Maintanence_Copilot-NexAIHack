@@ -31,102 +31,112 @@ from agent import run_agent
 PUBLIC_INDEX = PROJECT_ROOT / "public" / "index.html"
 
 app = FastAPI(
-    title="Aviation Maintenance Copilot API",
-    description="Agentic RAG assistant for commercial aviation maintenance logbooks.",
-    version="1.0.0",
+  title="Aviation Maintenance Copilot API",
+  description="Agentic RAG assistant for commercial aviation maintenance logbooks.",
+  version="1.0.0",
 )
 
 # Enable CORS for potential Streamlit or web UI integration
 app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+  CORSMiddleware,
+  allow_origins=["*"],
+  allow_credentials=True,
+  allow_methods=["*"],
+  allow_headers=["*"],
 )
 
 
 class ChatRequest(BaseModel):
-    query: str = Field(
-        ...,
-        description="Maintenance problem description, fault message, or query.",
-        examples=["ENG OIL PRESS LOW", "HYD SYS A LEAK"],
-    )
+  query: str = Field(
+    ...,
+    description="Maintenance problem description, fault message, or query.",
+    examples=["ENG OIL PRESS LOW", "HYD SYS A LEAK"],
+  )
 
 
 class ChatResponse(BaseModel):
-    answer: str = Field(..., description="Generated answer or refusal response.")
-    cited_records: list[dict[str, Any]] = Field(
-        default_factory=list,
-        description="Historical logbook records cited or used in the answer.",
-    )
-    tool_trace: list[dict[str, Any]] = Field(
-        default_factory=list,
-        description="Execution trace of tool calls and intermediate agent steps.",
-    )
-    recurring_defect_info: dict[str, Any] = Field(
-        default_factory=lambda: {"is_recurring": False},
-        description="Fleet recurrence detection metadata and severity.",
-    )
+  answer: str = Field(..., description="Generated answer or refusal response.")
+  cited_records: list[dict[str, Any]] = Field(
+    default_factory=list,
+    description="Historical logbook records cited or used in the answer.",
+  )
+  tool_trace: list[dict[str, Any]] = Field(
+    default_factory=list,
+    description="Execution trace of tool calls and intermediate agent steps.",
+  )
+  recurring_defect_info: dict[str, Any] = Field(
+    default_factory=lambda: {"is_recurring": False},
+    description="Fleet recurrence detection metadata and severity.",
+  )
 
 
 @app.get("/")
 def root():
-    """Serve the Web Cockpit UI directly or fallback to service info."""
-    if PUBLIC_INDEX.exists():
-        return FileResponse(PUBLIC_INDEX)
-    return {
-        "status": "online",
-        "service": "Aviation Maintenance Copilot API",
-        "endpoints": {
-            "chat": "POST /chat",
-            "docs": "GET /docs",
-        },
-    }
+  """Serve the Web Cockpit UI directly or fallback to service info."""
+  if PUBLIC_INDEX.exists():
+    return FileResponse(PUBLIC_INDEX)
+  return {
+    "status": "online",
+    "service": "Aviation Maintenance Copilot API",
+    "endpoints": {
+      "chat": "POST /chat",
+      "docs": "GET /docs",
+    },
+  }
 
 
+@app.get("/api")
+@app.get("/api/")
+@app.get("/api/index.py")
+@app.get("/api/index")
 @app.get("/health")
 def health() -> dict[str, str]:
-    """Health check endpoint."""
-    return {"status": "online"}
+  """Health check endpoint."""
+  return {"status": "online"}
 
 
 @app.post("/chat", response_model=ChatResponse)
 @app.post("/chat/", response_model=ChatResponse)
 @app.post("/api/chat", response_model=ChatResponse)
 @app.post("/api/chat/", response_model=ChatResponse)
+@app.post("/api/index.py", response_model=ChatResponse)
+@app.post("/api/index", response_model=ChatResponse)
+@app.post("/api", response_model=ChatResponse)
+@app.post("/api/", response_model=ChatResponse)
 def chat_endpoint(request: ChatRequest) -> ChatResponse:
-    """Process a maintenance query through the agentic RAG pipeline."""
-    raw_query = request.query.strip()
-    if not raw_query:
-        raise HTTPException(status_code=400, detail="Query string cannot be empty.")
+  """Process a maintenance query through the agentic RAG pipeline."""
+  raw_query = request.query.strip()
+  if not raw_query:
+    raise HTTPException(status_code=400, detail="Query string cannot be empty.")
 
-    try:
-        result = run_agent(raw_query)
-        return ChatResponse(
-            answer=result.get("answer", ""),
-            cited_records=result.get("cited_records", []),
-            tool_trace=result.get("tool_trace", []),
-            recurring_defect_info=result.get("recurring_defect_info", {"is_recurring": False}),
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error executing agent pipeline: {exc}",
-        ) from exc
+  try:
+    result = run_agent(raw_query)
+    return ChatResponse(
+      answer=result.get("answer", ""),
+      cited_records=result.get("cited_records", []),
+      tool_trace=result.get("tool_trace", []),
+      recurring_defect_info=result.get(
+        "recurring_defect_info", {"is_recurring": False}
+      ),
+    )
+  except Exception as exc:
+    raise HTTPException(
+      status_code=500,
+      detail=f"Error executing agent pipeline: {exc}",
+    ) from exc
 
 
 if __name__ == "__main__":
-    import uvicorn
+  import uvicorn
 
-    host = "127.0.0.1"
-    port = 8000
-    print("\n" + "=" * 65)
-    print("  AVIATION MAINTENANCE COPILOT - FASTAPI BACKEND")
-    print("=" * 65)
-    print(f"• Local Server URL : http://{host}:{port}")
-    print(f"• Interactive Docs : http://{host}:{port}/docs")
-    print(f"• Chat Endpoint    : POST http://{host}:{port}/chat")
-    print("=" * 65 + "\n")
+  host = "127.0.0.1"
+  port = 8000
+  print("\n" + "=" * 65)
+  print("  AVIATION MAINTENANCE COPILOT - FASTAPI BACKEND")
+  print("=" * 65)
+  print(f"• Local Server URL : http://{host}:{port}")
+  print(f"• Interactive Docs : http://{host}:{port}/docs")
+  print(f"• Chat Endpoint    : POST http://{host}:{port}/chat")
+  print("=" * 65 + "\n")
 
-    uvicorn.run(app, host=host, port=port)
+  uvicorn.run(app, host=host, port=port)

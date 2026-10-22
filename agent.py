@@ -60,9 +60,9 @@ TOOLS = [search_records_tool, get_record_tool]
 class GeminiLLM:
     """Lightweight LangChain-compatible wrapper for Google Gemini API."""
 
-    def __init__(self, api_key: str, model: str = "gemini-3.5-flash") -> None:
+    def __init__(self, api_key: str, model: str | None = None) -> None:
         self.api_key = api_key
-        self.model = model
+        self.model = model or os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
 
     def invoke(self, messages: list[Any]) -> AIMessage:
         prompt_lines = []
@@ -115,8 +115,9 @@ def get_llm():
     google_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     if google_api_key:
         try:
-            print("Initializing Google Gemini API (gemini-3.5-flash)...")
-            return GeminiLLM(api_key=google_api_key, model="gemini-3.5-flash")
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+            print(f"Initializing Google Gemini API ({model_name})...")
+            return GeminiLLM(api_key=google_api_key, model=model_name)
         except Exception as exc:
             print(f"Warning: Gemini init failed ({exc}), falling back to Ollama...")
 
