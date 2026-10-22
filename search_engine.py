@@ -297,23 +297,38 @@ class HybridSearchEngine:
 
         max_possible_rrf = 2.0 / (rrf_k + 1)  # Maximum possible RRF if ranked #1 in both
 
+        # Filter stop words to evaluate true technical token overlap between query and candidates
+        _stop_words = {
+            "a", "an", "the", "in", "on", "at", "to", "for", "of", "and", "or",
+            "is", "are", "was", "were", "with", "by", "from", "up", "out", "off",
+            "into", "over", "after", "no", "not", "be", "been", "it", "this", "that"
+        }
+        q_tokens = set(t for t in tokenize(f"{query} {normalized_query}") if t not in _stop_words and len(t) > 2)
+
         results: list[dict[str, Any]] = []
         for idx, rrf_score in sorted_candidates:
             row = self.df.iloc[idx]
             faiss_sim = max(float(faiss_sim_map.get(idx, 0.0)), 0.0)
             norm_rrf = min(float(rrf_score) / max_possible_rrf, 1.0)
+            combined_str = str(row["COMBINED_NORMALIZED"])
+
+            # Compute content token overlap between query and document to prevent incidental 1-word BM25 hits
+            doc_tokens = set(tokenize(combined_str))
+            overlap = q_tokens & doc_tokens
+            overlap_ratio = len(overlap) / max(len(q_tokens), 1)
+            effective_bm25 = (idx in bm25_rank_map) and (overlap_ratio >= 0.25 or len(overlap) >= 2)
 
             # Composite normalized match score in [0, 1]
-            if idx in bm25_rank_map and faiss_sim >= 0.52:
+            if effective_bm25 and faiss_sim >= 0.52:
                 match_score = round(norm_rrf * (0.4 + 0.6 * faiss_sim), 4)
-            elif faiss_sim >= 0.60:
+            elif faiss_sim >= 0.60 and (overlap_ratio >= 0.20 or len(overlap) >= 2):
                 match_score = round(norm_rrf * faiss_sim, 4)
-            elif idx in bm25_rank_map and faiss_sim >= 0.40:
+            elif effective_bm25 and faiss_sim >= 0.40:
                 match_score = round(norm_rrf * (0.15 + 0.25 * faiss_sim), 4)
             else:
-                match_score = round(norm_rrf * (faiss_sim ** 2.5), 4)
+                # Incidental single-word match or out-of-domain discrepancy
+                match_score = round(norm_rrf * (faiss_sim ** 3) * max(overlap_ratio, 0.2), 4)
 
-            combined_str = str(row["COMBINED_NORMALIZED"])
             record_domain_terms = extract_domain_terms(combined_str)
 
             results.append({

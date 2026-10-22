@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-10-22 12:40:49",
+  "timestamp": "2026-10-22 14:22:06",
   "normalization": {
     "total_cases": 6,
     "passed": 6,
@@ -195,23 +195,23 @@
     ]
   },
   "retrieval": {
-    "sample_size": 20,
-    "avg_retrieval_latency_ms": 208.42,
+    "sample_size": 25,
+    "avg_retrieval_latency_ms": 269.02,
     "bm25": {
-      "hit_at_1": 0.45,
-      "hit_at_3": 0.75,
-      "hit_at_5": 0.85
+      "hit_at_1": 0.4,
+      "hit_at_3": 0.68,
+      "hit_at_5": 0.76
     },
     "faiss": {
-      "hit_at_1": 0.35,
-      "hit_at_3": 0.55,
-      "hit_at_5": 0.6
+      "hit_at_1": 0.36,
+      "hit_at_3": 0.52,
+      "hit_at_5": 0.56
     },
     "hybrid_rrf": {
-      "hit_at_1": 0.4,
-      "hit_at_3": 0.7,
-      "hit_at_5": 0.9,
-      "mrr_at_5": 0.5725
+      "hit_at_1": 0.36,
+      "hit_at_3": 0.68,
+      "hit_at_5": 0.84,
+      "mrr_at_5": 0.538
     }
   },
   "refusal_gate": {
@@ -231,62 +231,62 @@
     },
     "out_of_domain_tests": [
       {
-        "query": "how to bake a chocolate cake",
-        "top_score": 0.0812,
+        "query": "AUTOPILOT YAW DAMPER OSCILLATION IN TURBULENCE",
+        "top_score": 0.0389,
         "refused": true,
         "correct": true
       },
       {
-        "query": "what is the capital of France",
-        "top_score": 0.0629,
+        "query": "WEATHER RADAR ANTENNA STABILIZATION GYRO DRIFT EXCESSIVE",
+        "top_score": 0.0363,
         "refused": true,
         "correct": true
       },
       {
-        "query": "best investment strategy for stock market 2026",
-        "top_score": 0.2336,
+        "query": "COCKPIT VOICE RECORDER UNDERWATER BEACON BATTERY EXPIRED",
+        "top_score": 0.0394,
         "refused": true,
         "correct": true
       },
       {
-        "query": "write a python script to reverse a linked list",
-        "top_score": 0.1129,
+        "query": "TCAS TRAFFIC COLLISION RESOLUTION ADVISORY COMPUTATION ERROR",
+        "top_score": 0.027,
         "refused": true,
         "correct": true
       },
       {
-        "query": "who won the football world cup",
-        "top_score": 0.0711,
+        "query": "GALLEY OVEN CONVECTION FAN BEARING SEIZED",
+        "top_score": 0.0282,
         "refused": true,
         "correct": true
       },
       {
-        "query": "chocolate chip cookie recipe with brown butter",
-        "top_score": 0.2638,
+        "query": "PASSENGER SEAT 14B RECLINE MECHANISM BROKEN",
+        "top_score": 0.0446,
         "refused": true,
         "correct": true
       },
       {
-        "query": "discount hotel reservation in New York",
-        "top_score": 0.2227,
+        "query": "AIRBORNE LASER CO OPTICAL CAVITY RESONATOR MISALIGNED",
+        "top_score": 0.0405,
         "refused": true,
         "correct": true
       },
       {
-        "query": "what is quantum entanglement physics",
-        "top_score": 0.0755,
+        "query": "RAM AIR TURBINE PYROTECHNIC ACTUATOR DROPPED RESISTANCE",
+        "top_score": 0.0509,
         "refused": true,
         "correct": true
       },
       {
-        "query": "how to train for a half marathon",
-        "top_score": 0.2303,
+        "query": "SATELLITE COMMUNICATIONS ANTENNA BEAM STEERING TIMEOUT",
+        "top_score": 0.0188,
         "refused": true,
         "correct": true
       },
       {
-        "query": "summarize the plot of Hamlet",
-        "top_score": 0.2142,
+        "query": "HEADS UP DISPLAY OPTICAL COMBINER GLASS COATING DELAMINATING",
+        "top_score": 0.0189,
         "refused": true,
         "correct": true
       }
@@ -356,32 +356,37 @@
   },
   "agent_e2e": {
     "total_evaluated": 3,
-    "avg_agent_latency_s": 3.73,
+    "avg_agent_latency_s": 6.22,
     "cases": [
       {
         "query": "ENG OIL PRESS LOW",
         "expected_accepted": true,
         "actual_refused": false,
-        "cited_count": 4,
+        "cited_count": 5,
         "citations_in_body": [
           "105839",
           "105842",
           "100062",
           "105841",
+          "100063",
           "105839",
+          "105842",
+          "100062",
+          "105841",
+          "100063",
           "100062",
           "105841"
         ],
-        "elapsed_seconds": 5.22,
-        "answer_preview": "### Problem & Symptom Analysis\n\nBased on the retrieved records, there are multiple instances where oil pressure readings were within the acc..."
+        "elapsed_seconds": 11.14,
+        "answer_preview": "Based on the historical maintenance records provided, there are multiple discrepancies related to engine oil pressure readings and adjustmen..."
       },
       {
-        "query": "how to bake a chocolate cake",
+        "query": "TCAS TRAFFIC COLLISION RESOLUTION ADVISORY COMPUTATION ERROR",
         "expected_accepted": false,
         "actual_refused": true,
         "cited_count": 0,
         "citations_in_body": [],
-        "elapsed_seconds": 0.09,
+        "elapsed_seconds": 0.13,
         "answer_preview": "Insufficient evidence in historical logbooks to provide a confident fix...."
       },
       {
@@ -394,10 +399,12 @@
           "103376",
           "103307",
           "102997",
-          "102620"
+          "102620",
+          "100021",
+          "103376"
         ],
-        "elapsed_seconds": 5.88,
-        "answer_preview": "Based on the historical records, there are no direct findings related to a hydraulic system A leak that required replacing a pump. The ident..."
+        "elapsed_seconds": 7.39,
+        "answer_preview": "Based on the historical records, there are no direct findings related to a hydraulic system A leak and pump replacement. The identified issu..."
       }
     ]
   }

@@ -64,16 +64,18 @@ DOMAIN_ENTITY_TEST_CASES = [
 ]
 
 OUT_OF_DOMAIN_QUERIES = [
-    "how to bake a chocolate cake",
-    "what is the capital of France",
-    "best investment strategy for stock market 2026",
-    "write a python script to reverse a linked list",
-    "who won the football world cup",
-    "chocolate chip cookie recipe with brown butter",
-    "discount hotel reservation in New York",
-    "what is quantum entanglement physics",
-    "how to train for a half marathon",
-    "summarize the plot of Hamlet",
+    # Aviation maintenance problems absent from the MaintNet piston corpus.
+    # Evaluates refusal specificity on realistic aviation-formatted queries.
+    "AUTOPILOT YAW DAMPER OSCILLATION IN TURBULENCE",
+    "WEATHER RADAR ANTENNA STABILIZATION GYRO DRIFT EXCESSIVE",
+    "COCKPIT VOICE RECORDER UNDERWATER BEACON BATTERY EXPIRED",
+    "TCAS TRAFFIC COLLISION RESOLUTION ADVISORY COMPUTATION ERROR",
+    "GALLEY OVEN CONVECTION FAN BEARING SEIZED",
+    "PASSENGER SEAT 14B RECLINE MECHANISM BROKEN",
+    "AIRBORNE LASER CO OPTICAL CAVITY RESONATOR MISALIGNED",
+    "RAM AIR TURBINE PYROTECHNIC ACTUATOR DROPPED RESISTANCE",
+    "SATELLITE COMMUNICATIONS ANTENNA BEAM STEERING TIMEOUT",
+    "HEADS UP DISPLAY OPTICAL COMBINER GLASS COATING DELAMINATING",
 ]
 
 IN_DOMAIN_PROBE_QUERIES = [
@@ -339,7 +341,7 @@ def evaluate_agent_e2e(run_llm: bool = True) -> dict[str, Any]:
 
     e2e_cases = [
         ("ENG OIL PRESS LOW", True),
-        ("how to bake a chocolate cake", False),
+        ("TCAS TRAFFIC COLLISION RESOLUTION ADVISORY COMPUTATION ERROR", False),
         ("ACFT HYD SYS A LEAK REPL PUMP", True),
     ]
 
