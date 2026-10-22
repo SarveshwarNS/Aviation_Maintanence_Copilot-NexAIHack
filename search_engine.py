@@ -292,27 +292,43 @@ class HybridSearchEngine:
             rrf_scores[idx] = rrf_scores.get(idx, 0.0) + (1.0 / (rrf_k + rank))
 
         # Sort candidate documents by descending RRF score
-        sorted_candidates = sorted(rrf_scores.items(), key=lambda item: item[1], reverse=True)[:top_k]
+        # Evaluate candidate pool
+        sorted_candidates = sorted(rrf_scores.items(), key=lambda item: item[1], reverse=True)[:candidate_k]
 
         max_possible_rrf = 2.0 / (rrf_k + 1)  # Maximum possible RRF if ranked #1 in both
+
+        # Filter stop words to evaluate true technical token overlap between query and candidates
+        _stop_words = {
+            "a", "an", "the", "in", "on", "at", "to", "for", "of", "and", "or",
+            "is", "are", "was", "were", "with", "by", "from", "up", "out", "off",
+            "into", "over", "after", "no", "not", "be", "been", "it", "this", "that"
+        }
+        q_tokens = set(t for t in tokenize(f"{query} {normalized_query}") if t not in _stop_words and len(t) > 2)
 
         results: list[dict[str, Any]] = []
         for idx, rrf_score in sorted_candidates:
             row = self.df.iloc[idx]
             faiss_sim = max(float(faiss_sim_map.get(idx, 0.0)), 0.0)
             norm_rrf = min(float(rrf_score) / max_possible_rrf, 1.0)
+            combined_str = str(row["COMBINED_NORMALIZED"])
+
+            # Compute content token overlap between query and document to prevent incidental 1-word BM25 hits
+            doc_tokens = set(tokenize(combined_str))
+            overlap = q_tokens & doc_tokens
+            overlap_ratio = len(overlap) / max(len(q_tokens), 1)
+            effective_bm25 = (idx in bm25_rank_map) and (overlap_ratio >= 0.25 or len(overlap) >= 2)
 
             # Composite normalized match score in [0, 1]
-            if idx in bm25_rank_map and faiss_sim > 0:
+            if effective_bm25 and faiss_sim >= 0.52:
                 match_score = round(norm_rrf * (0.4 + 0.6 * faiss_sim), 4)
-            elif faiss_sim >= 0.60:
+            elif faiss_sim >= 0.60 and (overlap_ratio >= 0.20 or len(overlap) >= 2):
                 match_score = round(norm_rrf * faiss_sim, 4)
-            elif idx in bm25_rank_map:
-                match_score = round(norm_rrf * 0.4, 4)
+            elif effective_bm25 and faiss_sim >= 0.40:
+                match_score = round(norm_rrf * (0.15 + 0.25 * faiss_sim), 4)
             else:
-                match_score = round(norm_rrf * (faiss_sim ** 2), 4)
+                # Incidental single-word match or out-of-domain discrepancy
+                match_score = round(norm_rrf * (faiss_sim ** 3) * max(overlap_ratio, 0.2), 4)
 
-            combined_str = str(row["COMBINED_NORMALIZED"])
             record_domain_terms = extract_domain_terms(combined_str)
 
             results.append({
@@ -332,7 +348,9 @@ class HybridSearchEngine:
                 "combined_text": combined_str,
             })
 
-        return results
+        # Rank candidates by composite confidence score, secondary by RRF score
+        results.sort(key=lambda r: (r["score"], r["rrf_score"]), reverse=True)
+        return results[:top_k]
 
     def get_record(self, record_id: str | int) -> dict[str, Any] | None:
         """Retrieve a specific record by its IDENT ID."""
@@ -378,6 +396,75 @@ def get_record(record_id: str | int) -> dict[str, Any] | None:
     """Convenience function to get a single record by ID."""
     engine = get_engine()
     return engine.get_record(record_id=record_id)
+
+
+def detect_recurring_defects(retrieved_records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Detect recurring component or fault patterns across retrieved records.
+
+    Extracts domain components from each record using extract_domain_terms,
+    counts component co-occurrences across the retrieved records, and
+    flags recurring patterns if any component appears >= 3 times.
+
+    Parameters
+    ----------
+    retrieved_records : list[dict]
+        List of historical logbook records returned from retrieval.
+
+    Returns
+    -------
+    dict[str, Any]
+        If any component/fault pattern appears >= 3 times:
+            {
+                "is_recurring": True,
+                "component": name,
+                "count": freq,
+                "severity": "HIGH",
+                "records": [record_ids]
+            }
+        Otherwise:
+            {"is_recurring": False}
+    """
+    if not retrieved_records:
+        return {"is_recurring": False}
+
+    component_records: dict[str, list[int | str]] = {}
+
+    for record in retrieved_records:
+        rec_id = record.get("ident")
+        # Extract domain terms from text representations
+        text = record.get("combined_text") or f"{record.get('problem', '')} {record.get('action', '')}"
+        extracted_terms = extract_domain_terms(text)
+        if not extracted_terms and record.get("domain_terms"):
+            extracted_terms = record.get("domain_terms", [])
+
+        # Count per-record occurrence to avoid duplicate counting within a single logbook entry
+        for term in set(extracted_terms):
+            canonical = term.strip()
+            if not canonical:
+                continue
+            if canonical not in component_records:
+                component_records[canonical] = []
+            if rec_id is not None:
+                component_records[canonical].append(rec_id)
+
+    # Filter for components or fault patterns appearing >= 3 times
+    recurring_candidates = [
+        (comp, rec_ids) for comp, rec_ids in component_records.items() if len(rec_ids) >= 3
+    ]
+
+    if recurring_candidates:
+        # Sort by frequency descending
+        recurring_candidates.sort(key=lambda item: len(item[1]), reverse=True)
+        top_comp, matched_records = recurring_candidates[0]
+        return {
+            "is_recurring": True,
+            "component": top_comp.upper(),
+            "count": len(matched_records),
+            "severity": "HIGH",
+            "records": matched_records,
+        }
+
+    return {"is_recurring": False}
 
 
 if __name__ == "__main__":

@@ -61,6 +61,10 @@ class ChatResponse(BaseModel):
         default_factory=list,
         description="Execution trace of tool calls and intermediate agent steps.",
     )
+    recurring_defect_info: dict[str, Any] = Field(
+        default_factory=lambda: {"is_recurring": False},
+        description="Fleet recurrence detection metadata and severity.",
+    )
 
 
 @app.get("/")
@@ -89,6 +93,7 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
             answer=result.get("answer", ""),
             cited_records=result.get("cited_records", []),
             tool_trace=result.get("tool_trace", []),
+            recurring_defect_info=result.get("recurring_defect_info", {"is_recurring": False}),
         )
     except Exception as exc:
         raise HTTPException(

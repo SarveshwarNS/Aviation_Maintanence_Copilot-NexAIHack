@@ -87,10 +87,50 @@ st.markdown(
         border-radius: 4px;
         margin: 10px 0;
     }
+    .recurrence-alert-card {
+        background-color: #FEF2F2;
+        border: 2px solid #EF4444;
+        border-left: 6px solid #DC2626;
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin-bottom: 14px;
+        box-shadow: 0 1px 3px rgba(220, 38, 38, 0.1);
+    }
+    .recurrence-alert-title {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #991B1B;
+        margin-bottom: 4px;
+    }
+    .recurrence-alert-body {
+        font-size: 0.92rem;
+        color: #7F1D1D;
+        font-weight: 500;
+    }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+
+def render_recurrence_card(rec_info: dict[str, Any]) -> None:
+    """Display a prominent red warning card if a recurring defect pattern is detected."""
+    if rec_info and rec_info.get("is_recurring"):
+        name = rec_info.get("component", "UNKNOWN")
+        x = rec_info.get("count", 0)
+        st.markdown(
+            f"""
+            <div class='recurrence-alert-card'>
+                <div class='recurrence-alert-title'>
+                    🚨 FLEET RECURRENCE ALERT: Component [{name}] has failed [{x}] times in historical logbooks.
+                </div>
+                <div class='recurrence-alert-body'>
+                    Consider root-cause analysis rather than isolated component replacement.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +155,7 @@ def query_backend_api(prompt: str) -> dict[str, Any]:
             "answer": f"Backend Error ({response.status_code}): {response.text}",
             "cited_records": [],
             "tool_trace": [{"step": "error", "detail": response.text}],
+            "recurring_defect_info": {"is_recurring": False},
         }
     except httpx.ConnectError:
         # Graceful fallback: run local agent directly if backend is offline
@@ -127,12 +168,14 @@ def query_backend_api(prompt: str) -> dict[str, Any]:
                 "answer": f"Could not connect to FastAPI at {CHAT_ENDPOINT} and local fallback failed: {exc}",
                 "cited_records": [],
                 "tool_trace": [{"step": "connection_error", "detail": str(exc)}],
+                "recurring_defect_info": {"is_recurring": False},
             }
     except Exception as exc:
         return {
             "answer": f"Unexpected client error: {exc}",
             "cited_records": [],
             "tool_trace": [{"step": "client_error", "detail": str(exc)}],
+            "recurring_defect_info": {"is_recurring": False},
         }
 
 
@@ -150,6 +193,7 @@ if "inspector_data" not in st.session_state:
         "cited_records": [],
         "tool_trace": [],
         "refused": False,
+        "recurring_defect_info": {"is_recurring": False},
     }
 
 
@@ -171,11 +215,12 @@ with st.sidebar:
     st.subheader("💡 Sample Discrepancy Queries")
 
     sample_queries = [
+        "ENG 1 CYLINDER PLUG FOULED",  # Recurring Defect Test
         "ENG OIL PRESS LOW",
         "ACFT HYD SYS A LEAK REPL PUMP",
         "CYL HEAD TEMP HIGH INOP",
         "MAGNETOS TIMING OUT OF SPEC",
-        "how to bake a chocolate cake",  # refusal benchmark
+        "TCAS TRAFFIC COLLISION RESOLUTION ADVISORY COMPUTATION ERROR",  # refusal benchmark
     ]
 
     for sq in sample_queries:
@@ -262,6 +307,8 @@ with col_chat:
             st.info("💡 Type a discrepancy in the box above or pick a sample query from the sidebar to begin troubleshooting.")
         for msg in st.session_state.messages:
             with st.chat_message(msg["role"]):
+                if msg.get("recurring_defect_info", {}).get("is_recurring"):
+                    render_recurrence_card(msg["recurring_defect_info"])
                 if msg.get("refused", False):
                     st.warning("⚠️ Refused: Insufficient evidence in historical logbooks.")
                 st.markdown(msg["content"])
@@ -288,12 +335,17 @@ with col_chat:
             answer = response_data.get("answer", "")
             cited = response_data.get("cited_records", [])
             trace = response_data.get("tool_trace", [])
+            recurring_info = response_data.get("recurring_defect_info", {"is_recurring": False})
 
             # Check if query was refused
             is_refused = (
                 "Insufficient evidence in historical logbooks" in answer
                 or any(t.get("decision") == "REFUSED" for t in trace)
             )
+
+            # Prominent Red Warning Card if Recurring Defect Detected
+            if recurring_info.get("is_recurring", False):
+                render_recurrence_card(recurring_info)
 
             if is_refused:
                 st.warning("⚠️ Refused: Insufficient evidence in historical logbooks.")
@@ -311,6 +363,7 @@ with col_chat:
                 "cited_records": cited,
                 "refused": is_refused,
                 "tool_trace": trace,
+                "recurring_defect_info": recurring_info,
             })
 
             # Update Inspector Data
@@ -323,6 +376,7 @@ with col_chat:
                 "cited_records": cited,
                 "tool_trace": trace,
                 "refused": is_refused,
+                "recurring_defect_info": recurring_info,
             }
 
 
@@ -456,3 +510,15 @@ with col_inspector:
         col_m1.metric("Refusal Threshold", f"{threshold:.2f}")
         col_m2.metric("Query Top Score", f"{top_score:.3f}")
         col_m3.metric("Decision", "REFUSED" if insp.get("refused", False) else "ACCEPTED")
+
+        st.markdown("---")
+        st.markdown("#### 4. Fleet Recurrence & Defect Analysis")
+        rec_data = insp.get("recurring_defect_info", {})
+        if rec_data.get("is_recurring"):
+            st.error(
+                f"🚨 **FLEET RECURRENCE ALERT:** Component `{rec_data.get('component')}` "
+                f"has failed **{rec_data.get('count')}** times in historical logbooks (Records: `{rec_data.get('records')}`).\n\n"
+                f"**Recommendation:** Consider root-cause analysis rather than isolated component replacement."
+            )
+        else:
+            st.success("✅ **Normal Pattern:** No high-frequency recurring defect pattern detected (component threshold < 3).")

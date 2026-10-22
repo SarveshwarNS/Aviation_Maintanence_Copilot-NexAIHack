@@ -22,7 +22,7 @@ from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, StateGraph
 
-from search_engine import get_record, search_records
+from search_engine import detect_recurring_defects, get_record, search_records
 from utils.normalizer import normalize_text
 
 load_dotenv()
@@ -97,6 +97,7 @@ class AgentState(TypedDict):
     raw_query: str
     normalized_query: str
     search_results: list[dict[str, Any]]
+    recurring_defect_info: dict[str, Any]
     refused: bool
     answer: str
     cited_records: list[dict[str, Any]]
@@ -121,12 +122,15 @@ def normalize_input_node(state: AgentState) -> dict[str, Any]:
 
 
 def retrieve_and_evaluate_node(state: AgentState) -> dict[str, Any]:
-    """Execute hybrid search and enforce strict refusal threshold logic."""
+    """Execute hybrid search, detect recurring defects, and enforce refusal logic."""
     query = state.get("normalized_query") or state.get("raw_query", "")
     results = search_records(query, top_k=5)
 
     trace = list(state.get("tool_trace", []))
     top_score = results[0]["score"] if results else 0.0
+
+    # Call detect_recurring_defects on the search results before generating the answer
+    recurring_info = detect_recurring_defects(results)
 
     trace.append({
         "step": "retrieve_records",
@@ -135,6 +139,7 @@ def retrieve_and_evaluate_node(state: AgentState) -> dict[str, Any]:
         "retrieved_count": len(results),
         "top_score": top_score,
         "threshold": REFUSAL_THRESHOLD,
+        "recurring_defect_info": recurring_info,
     })
 
     # Strict Refusal Threshold Logic:
@@ -147,6 +152,7 @@ def retrieve_and_evaluate_node(state: AgentState) -> dict[str, Any]:
         })
         return {
             "search_results": results,
+            "recurring_defect_info": {"is_recurring": False},
             "refused": True,
             "answer": REFUSAL_MESSAGE,
             "cited_records": [],
@@ -160,6 +166,7 @@ def retrieve_and_evaluate_node(state: AgentState) -> dict[str, Any]:
     })
     return {
         "search_results": results,
+        "recurring_defect_info": recurring_info,
         "refused": False,
         "tool_trace": trace,
     }
@@ -323,6 +330,7 @@ def run_agent(query: str) -> dict[str, Any]:
         "raw_query": query,
         "normalized_query": "",
         "search_results": [],
+        "recurring_defect_info": {"is_recurring": False},
         "refused": False,
         "answer": "",
         "cited_records": [],
@@ -335,6 +343,7 @@ def run_agent(query: str) -> dict[str, Any]:
         "answer": final_state.get("answer", ""),
         "cited_records": final_state.get("cited_records", []),
         "tool_trace": final_state.get("tool_trace", []),
+        "recurring_defect_info": final_state.get("recurring_defect_info", {"is_recurring": False}),
     }
 
 
