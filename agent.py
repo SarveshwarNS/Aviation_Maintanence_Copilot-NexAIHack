@@ -82,7 +82,7 @@ class GeminiLLM:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
         payload = json.dumps({
             "contents": [{"parts": [{"text": prompt_text}]}],
-            "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1024},
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 3072},
         }).encode("utf-8")
 
         try:
@@ -91,12 +91,15 @@ class GeminiLLM:
                 data=payload,
                 headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
             )
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=45) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 candidates = data.get("candidates", [])
                 if candidates:
-                    text = candidates[0]["content"]["parts"][0]["text"].strip()
-                    return AIMessage(content=text)
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    text_parts = [p.get("text", "") for p in parts if "text" in p]
+                    text = "\n".join(text_parts).strip()
+                    if text:
+                        return AIMessage(content=text)
         except Exception as exc:
             print(f"Cloud Gemini request failed or timed out ({exc}); falling back to local Ollama...")
             try:
@@ -225,18 +228,35 @@ def generate_node(state: AgentState) -> dict[str, Any]:
     results = state.get("search_results", [])
     trace = list(state.get("tool_trace", []))
 
+    recurring_info = state.get("recurring_defect_info", {})
+    recurrence_context = ""
+    if recurring_info.get("is_recurring"):
+        comp = recurring_info.get("component", "UNKNOWN")
+        cnt = recurring_info.get("count", 0)
+        symptoms_str = "; ".join(recurring_info.get("symptoms", [])[:3])
+        recurrence_context = (
+            f"\n\nFLEET RECURRENCE CONTEXT:\n"
+            f"- Subsystem [{comp}] has {cnt} documented occurrences in historical logbooks.\n"
+            f"- Documented failure symptoms: {symptoms_str}.\n"
+            f"- Factor this recurring defect pattern into your diagnostic breakdown."
+        )
+
     system_prompt = (
-        "You are an expert aviation maintenance technician and logbook analyst.\n"
-        "Your role is to diagnose the discrepancy and provide verified corrective actions "
-        "based STRICTLY on the retrieved historical maintenance records.\n\n"
+        "You are an expert aviation maintenance technician (A&P) and MRO diagnostic specialist.\n"
+        "Your task: diagnose the discrepancy and provide verified corrective actions based STRICTLY on the retrieved historical logbooks.\n\n"
         "CRITICAL INSTRUCTIONS:\n"
-        "1. Base your answer ONLY on the provided historical records. Do NOT invent, assume, or hallucinate procedures.\n"
-        "2. You MUST explicitly cite the specific record ID for every finding, symptom, and repair action "
-        "using the exact format '[Record #<ID>]' (for example: [Record #100062]).\n"
-        "3. Provide a clear, professional breakdown:\n"
-        "   - Problem & Symptom Analysis (citing relevant Record IDs)\n"
-        "   - Historical Corrective Actions Performed (citing relevant Record IDs)\n"
-        "   - Recommended Technical Next Steps"
+        "1. DO NOT include generic conversational filler (such as 'Based on the retrieved historical maintenance records...'). Jump directly into the technical diagnosis.\n"
+        "2. Explain the SPECIFIC MECHANICAL DEFECTS and symptoms in detail—do not just recite numbers or IDs. Detail how the fault manifested (e.g., ground run pressure spikes, relief valve bypass, cylinder compression leaks, transducer drift) and why.\n"
+        "3. Detail the exact historical repairs performed (e.g., adjusting oil pressure relief valve, torquing fittings, servicing oil cooler, replacing gaskets).\n"
+        "4. Keep the response focused, structured, and informative (concise yet packed with technical troubleshooting substance).\n"
+        "5. For EVERY finding, symptom, and repair action, explicitly cite the verified logbook record using '[Record #<ID>]' (e.g., [Record #100062]).\n\n"
+        "FORMATTING STRUCTURE:\n"
+        "### 1. Problem & Malfunction Breakdown\n"
+        "Explain the specific operating conditions, failure symptoms, and affected assemblies cited in [Record #XXXXXX].\n\n"
+        "### 2. Historical Corrective Actions & Root Causes\n"
+        "Detail the physical repairs and root cause discoveries made in past logs [Record #XXXXXX].\n\n"
+        "### 3. Recommended Flight-Line Troubleshooting Steps\n"
+        "Provide prioritized, step-by-step diagnostic actions for the maintenance technician."
     )
 
     call_id = f"call_{uuid.uuid4().hex[:8]}"
@@ -269,9 +289,11 @@ def generate_node(state: AgentState) -> dict[str, Any]:
         name="search_records_tool",
     )
 
+    user_query_payload = f"Reported Discrepancy: {raw_query}{recurrence_context}"
+
     messages = [
         SystemMessage(content=system_prompt),
-        HumanMessage(content=f"Reported Discrepancy: {raw_query}"),
+        HumanMessage(content=user_query_payload),
         ai_tool_call,
         tool_msg,
     ]
