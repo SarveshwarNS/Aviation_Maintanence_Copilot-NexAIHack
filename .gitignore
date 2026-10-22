@@ -25,3 +25,6 @@ Thumbs.db
 
 # Streamlit logs
 .streamlit/
+
+# Local Video Generation (kept local only)
+video/
