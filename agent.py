@@ -85,18 +85,29 @@ class GeminiLLM:
             "generationConfig": {"temperature": 0.1, "maxOutputTokens": 1024},
         }).encode("utf-8")
 
-        req = urllib.request.Request(
-            url,
-            data=payload,
-            headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            candidates = data.get("candidates", [])
-            if candidates:
-                text = candidates[0]["content"]["parts"][0]["text"].strip()
-                return AIMessage(content=text)
-        return AIMessage(content="No response generated.")
+        try:
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                candidates = data.get("candidates", [])
+                if candidates:
+                    text = candidates[0]["content"]["parts"][0]["text"].strip()
+                    return AIMessage(content=text)
+        except Exception as exc:
+            print(f"Cloud Gemini request failed or timed out ({exc}); falling back to local Ollama...")
+            try:
+                base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+                model_name = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+                chat_model = ChatOllama(model=model_name, base_url=base_url, temperature=0.1)
+                return chat_model.invoke(messages)
+            except Exception as o_exc:
+                print(f"Ollama fallback error: {o_exc}")
+
+        return AIMessage(content="Unable to generate response from either Gemini or Ollama.")
 
 
 def get_llm():
