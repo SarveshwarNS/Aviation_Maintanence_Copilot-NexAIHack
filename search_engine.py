@@ -292,7 +292,8 @@ class HybridSearchEngine:
             rrf_scores[idx] = rrf_scores.get(idx, 0.0) + (1.0 / (rrf_k + rank))
 
         # Sort candidate documents by descending RRF score
-        sorted_candidates = sorted(rrf_scores.items(), key=lambda item: item[1], reverse=True)[:top_k]
+        # Evaluate candidate pool
+        sorted_candidates = sorted(rrf_scores.items(), key=lambda item: item[1], reverse=True)[:candidate_k]
 
         max_possible_rrf = 2.0 / (rrf_k + 1)  # Maximum possible RRF if ranked #1 in both
 
@@ -303,14 +304,14 @@ class HybridSearchEngine:
             norm_rrf = min(float(rrf_score) / max_possible_rrf, 1.0)
 
             # Composite normalized match score in [0, 1]
-            if idx in bm25_rank_map and faiss_sim > 0:
+            if idx in bm25_rank_map and faiss_sim >= 0.52:
                 match_score = round(norm_rrf * (0.4 + 0.6 * faiss_sim), 4)
             elif faiss_sim >= 0.60:
                 match_score = round(norm_rrf * faiss_sim, 4)
-            elif idx in bm25_rank_map:
-                match_score = round(norm_rrf * 0.4, 4)
+            elif idx in bm25_rank_map and faiss_sim >= 0.40:
+                match_score = round(norm_rrf * (0.15 + 0.25 * faiss_sim), 4)
             else:
-                match_score = round(norm_rrf * (faiss_sim ** 2), 4)
+                match_score = round(norm_rrf * (faiss_sim ** 2.5), 4)
 
             combined_str = str(row["COMBINED_NORMALIZED"])
             record_domain_terms = extract_domain_terms(combined_str)
@@ -332,7 +333,9 @@ class HybridSearchEngine:
                 "combined_text": combined_str,
             })
 
-        return results
+        # Rank candidates by composite confidence score, secondary by RRF score
+        results.sort(key=lambda r: (r["score"], r["rrf_score"]), reverse=True)
+        return results[:top_k]
 
     def get_record(self, record_id: str | int) -> dict[str, Any] | None:
         """Retrieve a specific record by its IDENT ID."""

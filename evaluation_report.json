@@ -1,0 +1,404 @@
+{
+  "timestamp": "2026-10-22 12:40:49",
+  "normalization": {
+    "total_cases": 6,
+    "passed": 6,
+    "accuracy_pct": 100.0,
+    "abbreviations_loaded": 70,
+    "grammar_mappings_loaded": 18,
+    "details": [
+      {
+        "input": "ENG OIL PRESS LOW",
+        "normalized": "engine OIL pressure LOW",
+        "expected_tokens": [
+          "engine",
+          "pressure"
+        ],
+        "matched_tokens": [
+          "engine",
+          "pressure"
+        ],
+        "passed": true
+      },
+      {
+        "input": "ACFT HYD SYS A LEAK",
+        "normalized": "aircraft hydraulic system A LEAK",
+        "expected_tokens": [
+          "aircraft",
+          "hydraulic",
+          "system"
+        ],
+        "matched_tokens": [
+          "aircraft",
+          "hydraulic",
+          "system"
+        ],
+        "passed": true
+      },
+      {
+        "input": "CYL HEAD TEMP HIGH INOP",
+        "normalized": "cylinder HEAD temperature HIGH inoperate",
+        "expected_tokens": [
+          "cylinder",
+          "temperature",
+          "inoperate"
+        ],
+        "matched_tokens": [
+          "cylinder",
+          "temperature",
+          "inoperate"
+        ],
+        "passed": true
+      },
+      {
+        "input": "REPL FUEL PUMP AND CHK FOR LEAKS",
+        "normalized": "replaced FUEL PUMP AND checked FOR LEAKS",
+        "expected_tokens": [
+          "replaced",
+          "checked"
+        ],
+        "matched_tokens": [
+          "replaced",
+          "checked"
+        ],
+        "passed": true
+      },
+      {
+        "input": "ALT INOP REPLACEMENT REQUIRED",
+        "normalized": "alternator inoperate replace REQUIRED",
+        "expected_tokens": [
+          "alternator",
+          "inoperate",
+          "replace"
+        ],
+        "matched_tokens": [
+          "alternator",
+          "inoperate",
+          "replace"
+        ],
+        "passed": true
+      },
+      {
+        "input": "INCREASING RESISTANCE AND VIBRATION",
+        "normalized": "increase resist AND vibrate",
+        "expected_tokens": [
+          "increase",
+          "resist",
+          "vibrate"
+        ],
+        "matched_tokens": [
+          "increase",
+          "resist",
+          "vibrate"
+        ],
+        "passed": true
+      }
+    ]
+  },
+  "entities": {
+    "total_cases": 6,
+    "passed": 6,
+    "accuracy_pct": 100.0,
+    "details": [
+      {
+        "input": "ENG OIL PRESS LOW",
+        "expected_entities": [
+          "engine",
+          "pressure"
+        ],
+        "extracted_entities": [
+          "engine",
+          "pressure"
+        ],
+        "matched": [
+          "engine",
+          "pressure"
+        ],
+        "passed": true
+      },
+      {
+        "input": "HYD SYS A LEAK REPL PUMP",
+        "expected_entities": [
+          "hyd",
+          "hydraulic"
+        ],
+        "extracted_entities": [
+          "hyd",
+          "hydraulic"
+        ],
+        "matched": [
+          "hyd",
+          "hydraulic"
+        ],
+        "passed": true
+      },
+      {
+        "input": "CYL HEAD GASKET LEAKING",
+        "expected_entities": [
+          "cylinder",
+          "gasket"
+        ],
+        "extracted_entities": [
+          "gasket",
+          "cylinder"
+        ],
+        "matched": [
+          "cylinder",
+          "gasket"
+        ],
+        "passed": true
+      },
+      {
+        "input": "MAGNETOS TIMING OUT OF SPEC",
+        "expected_entities": [
+          "magnetos"
+        ],
+        "extracted_entities": [
+          "magnetos"
+        ],
+        "matched": [
+          "magnetos"
+        ],
+        "passed": true
+      },
+      {
+        "input": "EXHAUST GAS TEMPERATURE HIGH",
+        "expected_entities": [
+          "exhaust gas temperature",
+          "exhaust"
+        ],
+        "extracted_entities": [
+          "exhaust gas temperature"
+        ],
+        "matched": [
+          "exhaust gas temperature",
+          "exhaust"
+        ],
+        "passed": true
+      },
+      {
+        "input": "BATTERY AND ALTERNATOR REPLACED",
+        "expected_entities": [
+          "battery",
+          "alternator"
+        ],
+        "extracted_entities": [
+          "battery",
+          "alternator"
+        ],
+        "matched": [
+          "battery",
+          "alternator"
+        ],
+        "passed": true
+      }
+    ]
+  },
+  "retrieval": {
+    "sample_size": 20,
+    "avg_retrieval_latency_ms": 208.42,
+    "bm25": {
+      "hit_at_1": 0.45,
+      "hit_at_3": 0.75,
+      "hit_at_5": 0.85
+    },
+    "faiss": {
+      "hit_at_1": 0.35,
+      "hit_at_3": 0.55,
+      "hit_at_5": 0.6
+    },
+    "hybrid_rrf": {
+      "hit_at_1": 0.4,
+      "hit_at_3": 0.7,
+      "hit_at_5": 0.9,
+      "mrr_at_5": 0.5725
+    }
+  },
+  "refusal_gate": {
+    "threshold": 0.35,
+    "confusion_matrix": {
+      "true_positives": 10,
+      "false_positives": 0,
+      "true_negatives": 10,
+      "false_negatives": 0
+    },
+    "metrics": {
+      "accuracy": 1.0,
+      "precision": 1.0,
+      "recall_sensitivity": 1.0,
+      "specificity": 1.0,
+      "f1_score": 1.0
+    },
+    "out_of_domain_tests": [
+      {
+        "query": "how to bake a chocolate cake",
+        "top_score": 0.0812,
+        "refused": true,
+        "correct": true
+      },
+      {
+        "query": "what is the capital of France",
+        "top_score": 0.0629,
+        "refused": true,
+        "correct": true
+      },
+      {
+        "query": "best investment strategy for stock market 2026",
+        "top_score": 0.2336,
+        "refused": true,
+        "correct": true
+      },
+      {
+        "query": "write a python script to reverse a linked list",
+        "top_score": 0.1129,
+        "refused": true,
+        "correct": true
+      },
+      {
+        "query": "who won the football world cup",
+        "top_score": 0.0711,
+        "refused": true,
+        "correct": true
+      },
+      {
+        "query": "chocolate chip cookie recipe with brown butter",
+        "top_score": 0.2638,
+        "refused": true,
+        "correct": true
+      },
+      {
+        "query": "discount hotel reservation in New York",
+        "top_score": 0.2227,
+        "refused": true,
+        "correct": true
+      },
+      {
+        "query": "what is quantum entanglement physics",
+        "top_score": 0.0755,
+        "refused": true,
+        "correct": true
+      },
+      {
+        "query": "how to train for a half marathon",
+        "top_score": 0.2303,
+        "refused": true,
+        "correct": true
+      },
+      {
+        "query": "summarize the plot of Hamlet",
+        "top_score": 0.2142,
+        "refused": true,
+        "correct": true
+      }
+    ],
+    "in_domain_tests": [
+      {
+        "query": "ENG OIL PRESS LOW",
+        "top_score": 0.7837,
+        "accepted": true,
+        "correct": true
+      },
+      {
+        "query": "HYD SYS A LEAK REPL PUMP",
+        "top_score": 0.3737,
+        "accepted": true,
+        "correct": true
+      },
+      {
+        "query": "CYL HEAD TEMP HIGH INOP",
+        "top_score": 0.8612,
+        "accepted": true,
+        "correct": true
+      },
+      {
+        "query": "MAGNETOS TIMING OUT OF SPEC",
+        "top_score": 0.8239,
+        "accepted": true,
+        "correct": true
+      },
+      {
+        "query": "CARBURETOR HEAT INOP",
+        "top_score": 0.8352,
+        "accepted": true,
+        "correct": true
+      },
+      {
+        "query": "LANDING GEAR RETRACTION SLOW",
+        "top_score": 0.7332,
+        "accepted": true,
+        "correct": true
+      },
+      {
+        "query": "VACUUM PUMP OIL LEAK",
+        "top_score": 0.9232,
+        "accepted": true,
+        "correct": true
+      },
+      {
+        "query": "ENGINE IDLE OVERRIDE FAILED",
+        "top_score": 0.9012,
+        "accepted": true,
+        "correct": true
+      },
+      {
+        "query": "ALTERNATOR DISCHARGING IN FLIGHT",
+        "top_score": 0.88,
+        "accepted": true,
+        "correct": true
+      },
+      {
+        "query": "CYLINDER COMPRESSION LOW #3",
+        "top_score": 0.8775,
+        "accepted": true,
+        "correct": true
+      }
+    ]
+  },
+  "agent_e2e": {
+    "total_evaluated": 3,
+    "avg_agent_latency_s": 3.73,
+    "cases": [
+      {
+        "query": "ENG OIL PRESS LOW",
+        "expected_accepted": true,
+        "actual_refused": false,
+        "cited_count": 4,
+        "citations_in_body": [
+          "105839",
+          "105842",
+          "100062",
+          "105841",
+          "105839",
+          "100062",
+          "105841"
+        ],
+        "elapsed_seconds": 5.22,
+        "answer_preview": "### Problem & Symptom Analysis\n\nBased on the retrieved records, there are multiple instances where oil pressure readings were within the acc..."
+      },
+      {
+        "query": "how to bake a chocolate cake",
+        "expected_accepted": false,
+        "actual_refused": true,
+        "cited_count": 0,
+        "citations_in_body": [],
+        "elapsed_seconds": 0.09,
+        "answer_preview": "Insufficient evidence in historical logbooks to provide a confident fix...."
+      },
+      {
+        "query": "ACFT HYD SYS A LEAK REPL PUMP",
+        "expected_accepted": true,
+        "actual_refused": false,
+        "cited_count": 5,
+        "citations_in_body": [
+          "100021",
+          "103376",
+          "103307",
+          "102997",
+          "102620"
+        ],
+        "elapsed_seconds": 5.88,
+        "answer_preview": "Based on the historical records, there are no direct findings related to a hydraulic system A leak that required replacing a pump. The ident..."
+      }
+    ]
+  }
+}

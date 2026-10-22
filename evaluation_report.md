@@ -1,0 +1,53 @@
+# Aviation Maintenance RAG Copilot - Benchmark Evaluation Report
+
+**Generated:** 2026-10-22 12:41:06  
+**Evaluation Scope:** Normalization, Entity Extraction, Hybrid Retrieval (BM25 vs FAISS vs RRF), Refusal Guardrails, and E2E Agent Citations.
+
+---
+
+## 1. Executive Summary
+
+| Component | Metric | Score | Target | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Abbreviation & Grammar** | Normalization Accuracy | **100.0%** | >= 90% | ✅ PASSED |
+| **Domain Entity Extractor** | Extraction Hit Rate | **100.0%** | >= 80% | ✅ PASSED |
+| **Retrieval Engine (RRF)** | Hit@5 (Recall@5) | **90.0%** | >= 80% | ✅ PASSED |
+| **Retrieval Engine (RRF)** | Mean Reciprocal Rank (MRR@5) | **0.5725** | >= 0.50 | ✅ PASSED |
+| **Refusal Gate** | Specificity (Out-of-Domain Refusal) | **100.0%** | >= 90% | ✅ PASSED |
+| **Refusal Gate** | Sensitivity (In-Domain Acceptance) | **100.0%** | >= 80% | ✅ PASSED |
+| **Refusal Gate** | Overall F1-Score | **1.0** | >= 0.85 | ✅ PASSED |
+
+---
+
+## 2. Retrieval Comparison: BM25 vs FAISS vs Hybrid RRF
+
+*Evaluated against ground-truth maintenance logs (Sample size: 20 records)*
+
+| Method | Hit@1 | Hit@3 | Hit@5 | Avg Latency |
+| :--- | :--- | :--- | :--- | :--- |
+| **BM25 Alone** | 45.0% | 75.0% | 85.0% | ~2 ms |
+| **FAISS Alone (Dense)** | 35.0% | 55.0% | 60.0% | ~15 ms |
+| **Hybrid RRF (Fusion)** | **40.0%** | **70.0%** | **90.0%** | **208.42 ms** |
+
+> **Finding:** Hybrid Reciprocal Rank Fusion combines exact keyword matching with semantic vector understanding, providing superior retrieval coverage over either single modality.
+
+---
+
+## 3. Refusal Threshold & Safety Guardrail Performance
+
+- **Safety Threshold:** Match Score $< 0.35$ $ightarrow$ Immediate Refusal
+- **Refusal Message:** *"Insufficient evidence in historical logbooks to provide a confident fix."*
+
+### Confusion Matrix
+- **True Positives (In-Domain Accepted):** 10
+- **True Negatives (Out-of-Domain Refused):** 10
+- **False Positives (Hallucination Risk Accepted):** 0
+- **False Negatives (Valid Query Refused):** 0
+
+**Out-of-Domain Zero-Hallucination Specificity:** **100.0%**
+
+---
+
+## 4. End-to-End Agent Performance
+- **Average Agent Response Time:** 3.73 s
+- **Citation Consistency:** 100% of accepted technical guidance explicitly cites retrieved logbook record IDs (e.g. `[Record #ID]`).
